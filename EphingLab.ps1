@@ -100,11 +100,13 @@ If (!([string]::IsNullOrEmpty($WindowsProductKey))) {
 "@ | Out-File $FilePath -Append -Encoding ASCII
 
 If (!([string]::IsNullOrEmpty($Domain))) {
+$SplitDomain = $Domain.Split('.')
+$SplitDomain = $SplitDomain[0]
 @"
         <component name="Microsoft-Windows-UnattendedJoin" processorArchitecture="amd64" publicKeyToken="31bf3856ad364e35" language="neutral" versionScope="nonSxS" xmlns:wcm="http://schemas.microsoft.com/WMIConfig/2002/State" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
             <Identification>
                 <Credentials>
-                    <Domain>$Domain</Domain>
+                    <Domain>$SplitDomain</Domain>
                     <Password>$JoinDomainPassword</Password>
                     <Username>$JoinDomainUsername</Username>
                 </Credentials>
@@ -216,6 +218,8 @@ $OnSetup = 0
 If ((Get-WmiObject -Class Win32_OperatingSystem).BuildNumber -le 7601) {Enable-PSRemoting -Force}
 Remove-Item "`$env:WinDir\Setup\Scripts\SetupComplete.ps1"
 Set-NetFirewallProfile -Profile Domain -Enabled False
+Set-NetFirewallProfile -Profile Public -Enabled False
+Set-NetFirewallProfile -Profile Private -Enabled False
 "@ | Out-File "$DriveLetter`:\Windows\Setup\Scripts\SetupComplete.ps1" -Encoding ASCII
 
 If ($InstallDomain -eq $true) {
@@ -325,12 +329,14 @@ Function Create-EphingLabVM {
     }
 
     Create-EphingUnattend @UnattendParams
-
+    $StartupScriptName = $StartupScript.Split('\')
+    $StartupScriptName = $StartupScriptName[$StartupScriptName.Length - 1]
     $SetupCompleteParams = @{
             'DriveLetter'="$Drive";
             'InstallDomain'=$InstallDomain;
             'AdministratorPassword'="$AdministratorPassword";
             'Domain'="$SetupCompleteDomain";
+            'StartupScriptName'=$StartupScriptName;
     }
 
     Create-EphingSetupComplete @SetupCompleteParams
@@ -354,54 +360,66 @@ Function Create-EphingLab {
         If ($DomainController -eq $VM.VMName) { $DNSAddress = $VM.IPAddress }
     }
     Foreach ($vm in $xml.Lab.VM) {
-        [int64]$OneGB = 1073741824
-        $VMMemory = $VM.Memory
-        $VMMemory = [int64]$VMMemory.ToUpper().Replace("GB","")
-        $VMMemory = $VMMemory * $OneGB
-        $InstallDomain = $false
-        If ($DomainController -eq $VM.VMName) { $InstallDomain = $true }
-        $StartupScript = $vm.StartupScript
-        $AutoLogon = $false
-        if (!([String]::IsNullOrEmpty($StartupScript))) { $AutoLogon = $true }
-        $NewVMParams = @{
-            VHDPath = $VM.VHDPath
-            VHDParentPath = $VM.VHDParentPath
-            VMName = $VM.VMName
-            VMPath = $VM.VMPath
-            MemoryStartupBytes = $VMMemory
-            Processors = $VM.Processors
-            SwitchName = $Switch
-            Generation = $VM.Generation
-            ProductKey = $Vm.ProductKey
-            IPMask = "24"
-            IPGateway = "192.168.1.1"
-            IPAddress = $VM.IPAddress
-            DNSAddress = $DNSAddress
-            Domain = $DomainName
-            JoinDomainPassword = $AdminPassword
-            JoinDomainUsername = "$DomainName\Administrator"
-            AutoLogon = $AutoLogon
-            AdministratorPassword = $AdminPassword
-            InstallDomain = $InstallDomain
-            SetupCompleteDomain = $DomainName
-            StartupScript = $VM.StartupScript
-        }
-        Create-EphingLabVM @NewVMParams
-
-        $Mounted = $false
-        $Drive = ""
-        Foreach ($instance in $VM.FolderToCopy) {
-            if($Mounted -eq $false) {
-                $Drive = Mount-EphingDrive -Path $VM.VHDPath
-                $Drive = $Drive + ":\"
-                $Mounted = $true
+        If (!(Get-VM -Name $VM.VMName -ErrorAction SilentlyContinue)) {
+            [int64]$OneGB = 1073741824
+            $VMMemory = $VM.Memory
+            $VMMemory = [int64]$VMMemory.ToUpper().Replace("GB","")
+            $VMMemory = $VMMemory * $OneGB
+            $InstallDomain = $false
+            If ($DomainController -eq $VM.VMName) { $InstallDomain = $true }
+            $StartupScript = $vm.StartupScript
+            $AutoLogon = $false
+            if (!([String]::IsNullOrEmpty($StartupScript))) { $AutoLogon = $true }
+            $NewVMParams = @{
+                VHDPath = $VM.VHDPath
+                VHDParentPath = $VM.VHDParentPath
+                VMName = $VM.VMName
+                VMPath = $VM.VMPath
+                MemoryStartupBytes = $VMMemory
+                Processors = $VM.Processors
+                SwitchName = $Switch
+                Generation = $VM.Generation
+                ProductKey = $Vm.ProductKey
+                IPMask = "24"
+                IPGateway = "192.168.1.1"
+                IPAddress = $VM.IPAddress
+                DNSAddress = $DNSAddress
+                Domain = $DomainName
+                JoinDomainPassword = $AdminPassword
+                JoinDomainUsername = "Administrator"
+                AutoLogon = $AutoLogon
+                AdministratorPassword = $AdminPassword
+                InstallDomain = $InstallDomain
+                SetupCompleteDomain = $DomainName
+                StartupScript = $VM.StartupScript
             }
-            Copy-Item -Path $instance -Destination $Drive -Recurse
-        }
-        If ($Mounted -eq $true) {
-            Dismount-VHD -Path $VM.VHDPath
-        }
+            Create-EphingLabVM @NewVMParams
 
+            $Mounted = $false
+            $Drive = ""
+            Foreach ($instance in $VM.FolderToCopy) {
+                if($Mounted -eq $false) {
+                    $Drive = Mount-EphingDrive -Path $VM.VHDPath
+                    $Drive = $Drive + ":\"
+                    $Mounted = $true
+                }
+                Copy-Item -Path $instance -Destination $Drive -Recurse
+            }
+
+            $StartScript = $VM.StartupScript
+            if(!([String]::IsNullOrEmpty($StartScript))) {
+                If ($Mounted -ne $true) { 
+                    $Drive = Mount-EphingDrive -Path $VM.VHDPath
+                    $Drive = $Drive + ":\"
+                    $Mounted = $true
+                }
+                Copy-Item -Path $StartScript -Destination $Drive
+            }
+
+            If ($Mounted -eq $true) {
+                Dismount-VHD -Path $VM.VHDPath
+            }
+        }
     }
     Start-VM -Name $DomainController
     $Off = $false
