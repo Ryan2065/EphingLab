@@ -453,6 +453,6 @@ Function Remove-EphingLab {
     }
 }
 
-Create-EphingLab -LabXML 'D:\HomeLab.xml'
+#Create-EphingLab -LabXML 'D:\HomeLab.xml'
 
 #Remove-EphingLab -LabXML 'D:\HomeLab.xml'
