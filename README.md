@@ -8,14 +8,24 @@ I decided to make these functions to fix the issues above. This is designed to d
 Feel free to contribute to this product with any install scripts you create
 
 Features:
+
 Creates VMs based on XML file
+
 Automatically creates one domain controller
+
 Copies folders to the root of C of VMs created
+
 Runs scripts at startup of the VM
+
 Domain joins all VMs to the domain specified in the XML file
 
+
 To Do:
-Enable customizations to the DC when it is created
-Finish install scripts for common products (SCCM, SCSM, SCORCH, Exchange, SQL, etc...)
-Add checks to make sure all information needed is given
-Add help parameters
+
+1) Enable customizations to the DC when it is created
+
+2) Finish install scripts for common products (SCCM, SCSM, SCORCH, Exchange, SQL, etc...)
+
+3) Add checks to make sure all information needed is given
+
+4) Add help parameters
