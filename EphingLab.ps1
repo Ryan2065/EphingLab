@@ -215,7 +215,7 @@ powershell.exe -command %WinDir%\Setup\Scripts\SetupComplete.ps1
 $OnSetup = 0
 
 @"
-If ((Get-WmiObject -Class Win32_OperatingSystem).BuildNumber -le 7601) {Enable-PSRemoting -Force}
+Enable-PSRemoting -Force
 Remove-Item "`$env:WinDir\Setup\Scripts\SetupComplete.ps1"
 Set-NetFirewallProfile -Profile Domain -Enabled False
 Set-NetFirewallProfile -Profile Public -Enabled False
@@ -343,7 +343,6 @@ Function Create-EphingLabVM {
 
     Dismount-VHD -Path $VHDPath
 
-
 }
 
 Function Create-EphingLab {
@@ -419,9 +418,10 @@ Function Create-EphingLab {
             If ($Mounted -eq $true) {
                 Dismount-VHD -Path $VM.VHDPath
             }
-        }
+            If ($DomainController -eq $VM.VMName) { Start-VM -Name $DomainController }
+        } #if get-name
     }
-    Start-VM -Name $DomainController
+
     $Off = $false
     $count = 0
     while ($off -eq $false) {
