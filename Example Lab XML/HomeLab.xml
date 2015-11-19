@@ -2,10 +2,10 @@
 	<General>
 		<Domain>Home.Lab</Domain>
 		<AdministratorPassword>P@ssw0rd</AdministratorPassword>
-		<Switch>Lab-Switch</Switch>
+		<Switch>Lab-Switch2</Switch>
 		<DomainController>Lab-DC</DomainController>
 	</General>
-	<VM>
+	<!--<VM>
 		<VMName>Lab-DC</VMName>
 		<VHDPath>D:\Hyper-V\Virtual Hard Disks\Lab-DC.VHDX</VHDPath>
 		<VHDParentPath>D:\Hyper-V\Virtual Hard Disks\Server2012R2DataCenter-ParentDisk.vhdx</VHDParentPath>
@@ -106,5 +106,5 @@
 			<Path></Path>
 			<Size></Size>
 		</AdditionalDrive>
-	</VM>
+	</VM>-->
 </Lab>

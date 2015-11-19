@@ -1,4 +1,13 @@
 ﻿
+Function Write-EphingLog {
+    Param (
+        $Message,
+        $ErrorMessage
+    )
+    Write-Host $Message 
+    Write-Host $ErrorMessage
+}
+
 Function Mount-EphingDrive {
     Param ($Path)
     $DriveLetter=""
@@ -354,9 +363,17 @@ Function Create-EphingLab {
     $Switch = $xml.Lab.General.Switch
     $DomainController = $xml.Lab.General.DomainController
     $DNSAddress = ""
-    
     Foreach ($vm in $xml.Lab.VM) {
         If ($DomainController -eq $VM.VMName) { $DNSAddress = $VM.IPAddress }
+    }
+    Write-EphingLog -Message "Domain: $DomainName"
+    Write-EphingLog -Message "Switch: $Switch"
+    Write-EphingLog -Message "Domain Controller: $DomainController"
+    Write-EphingLog -Message "Admin Password: $AdminPassword"
+    Write-EphingLog -Message "DNS Address: $DNSAddress"
+    If (!(Get-VMSwitch -Name $Switch -ErrorAction SilentlyContinue)) { 
+        Write-Log -Message "Switch $Switch not found - creating..."
+        New-VMSwitch -Name $Switch -SwitchType Internal
     }
     Foreach ($vm in $xml.Lab.VM) {
         If (!(Get-VM -Name $VM.VMName -ErrorAction SilentlyContinue)) {
