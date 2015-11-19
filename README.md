@@ -37,3 +37,5 @@ To Do:
 3) Add checks to make sure all information needed is given
 
 4) Add help parameters
+
+5) Create additional drives based on the XML
