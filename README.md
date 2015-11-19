@@ -7,6 +7,10 @@ I decided to make these functions to fix the issues above. This is designed to d
 
 Feel free to contribute to this product with any install scripts you create
 
+
+USAGE:  Create-EphingLab -LabXML 'D:\HomeLab.XML'
+
+
 Features:
 
 Creates VMs based on XML file
