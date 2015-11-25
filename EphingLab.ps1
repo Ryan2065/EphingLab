@@ -4,14 +4,15 @@ Function Write-EphingLog {
         $Message,
         $ErrorMessage
     )
-    Write-Host $Message 
-    Write-Host $ErrorMessage
+    if ( [String]::IsNullOrEmpty($ErrorMessage) ) { return $Message }
+    else { return $ErrorMessage }
 }
 
 Function Mount-EphingDrive {
     Param ($Path)
     $DriveLetter=""
-    $Drives = (Mount-VHD -Path $Path -ErrorAction SilentlyContinue -PassThru | Get-Disk | Get-Partition).DriveLetter
+    $MountedDrive = Mount-VHD -Path $Path -ErrorAction SilentlyContinue -PassThru
+    $Drives = (Get-Partition -DiskNumber $MountedDrive.DiskNumber).DriveLetter
     If ($Drives.Count -gt 1) {
         $LargestDrive = 0
         For ($d = 0; $d -lt $Drives.Count; $d++) {
@@ -356,8 +357,8 @@ Function Create-EphingLabVM {
 
 Function Create-EphingLab {
     Param ( $LabXML )
+    cls
     [xml]$XML = Get-Content $LabXML
-
     $DomainName = $xml.Lab.General.Domain
     $AdminPassword = $xml.Lab.General.AdministratorPassword
     $Switch = $xml.Lab.General.Switch
@@ -376,7 +377,7 @@ Function Create-EphingLab {
         New-VMSwitch -Name $Switch -SwitchType Internal
     }
     Foreach ($vm in $xml.Lab.VM) {
-        If (!(Get-VM -Name $VM.VMName -ErrorAction SilentlyContinue)) {
+        If (!(Get-VM -Name $VM.VMName -ErrorAction SilentlyContinue) -and !( Test-Path $VM.VHDPath )) {
             [int64]$OneGB = 1073741824
             $VMMemory = $VM.Memory
             $VMMemory = [int64]$VMMemory.ToUpper().Replace("GB","")
@@ -409,8 +410,9 @@ Function Create-EphingLab {
                 SetupCompleteDomain = $DomainName
                 StartupScript = $VM.StartupScript
             }
+            Write-EphingLog -Message ( $VM.VMName + " - Creating" )
             Create-EphingLabVM @NewVMParams
-
+            Write-EphingLog -Message ( $VM.VMName + " - Copying additional folders if specified" )
             $Mounted = $false
             $Drive = ""
             Foreach ($instance in $VM.FolderToCopy) {
@@ -424,6 +426,7 @@ Function Create-EphingLab {
 
             $StartScript = $VM.StartupScript
             if(!([String]::IsNullOrEmpty($StartScript))) {
+                Write-EphingLog -Message ( $VM.VMName + " - Setting up startup script " )
                 If ($Mounted -ne $true) { 
                     $Drive = Mount-EphingDrive -Path $VM.VHDPath
                     $Drive = $Drive + ":\"
@@ -433,28 +436,22 @@ Function Create-EphingLab {
             }
 
             If ($Mounted -eq $true) {
+                Write-EphingLog -Message ( $VM.VMName + " - Dismounting drive" )
                 Dismount-VHD -Path $VM.VHDPath
             }
-            If ($DomainController -eq $VM.VMName) { Start-VM -Name $DomainController }
+            If ($DomainController -eq $VM.VMName) { 
+                Write-EphingLog -Message ( $VM.VMName + ' - VM is the DC, starting VM' )
+                Start-VM -Name $DomainController 
+            }
         } #if get-name
-    }
-
-    $Off = $false
-    $count = 0
-    while ($off -eq $false) {
-        If ((Get-VM -Name $DomainController).State -ne 'Running') {
-            if ($count -ne 0) { $off = $true }
-            else { $count++ }
-            Start-Sleep 10
+        elseif ( Get-VM -Name $VM.VMName -ErrorAction SilentlyContinue ) { 
+            Write-EphingLog -Message ( $VM.VMName + " - Skipping - VM Exists" )
+        }
+        else { 
+            Write-EphingLog -Message ( $VM.VMName + " - Skipping - VHD Path " + $VM.VHDPath + " found" ) 
         }
     }
-
-    Start-VM -Name $DomainController
-    Start-Sleep 10
-
-    Foreach ($vm in $xml.Lab.VM) {
-        Start-VM -Name $VM.VMName
-    }
+    Write-EphingLog -Message "Finished! If the Domain Controller was made with this script`nit will be starting now. Once the VM shuts down the domain is`ncreated. Start the DC, wait a few seconds, then start the other VMs!`nThey will domain join and run the specified startup scripts"
 }
 
 Function Remove-EphingLab {
@@ -470,6 +467,3 @@ Function Remove-EphingLab {
     }
 }
 
-#Create-EphingLab -LabXML 'D:\HomeLab.xml'
-
-#Remove-EphingLab -LabXML 'D:\HomeLab.xml'
