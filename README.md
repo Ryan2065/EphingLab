@@ -27,12 +27,13 @@ Runs scripts at startup of the VM
 
 Domain joins all VMs to the domain specified in the XML file
 
+Sample scripts to install ConfigMgr and Service Manager work now.
 
 To Do:
 
 1) Enable customizations to the DC when it is created
 
-2) Finish install scripts for common products (SCCM, SCSM, SCORCH, Exchange, SQL, etc...)
+2) Finish install scripts for common products (SCORCH, SCOM, Exchange, SQL, etc...)
 
 3) Add checks to make sure all information needed is given
 
