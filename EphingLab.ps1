@@ -4,8 +4,8 @@ Function Write-EphingLog {
         $Message,
         $ErrorMessage
     )
-    if ( [String]::IsNullOrEmpty($ErrorMessage) ) { return $Message }
-    else { return $ErrorMessage }
+    if ( [String]::IsNullOrEmpty($ErrorMessage) ) { Write-Host $Message }
+    else { Write-Host $ErrorMessage }
 }
 
 Function Mount-EphingDrive {
@@ -317,8 +317,8 @@ Function Create-EphingLabVM {
         'Generation' = $Generation;
     }
 
-    New-VM @NewVMParams
-    Set-VM -Name $VMName -ProcessorCount $Processors -DynamicMemory:$false
+    New-VM @NewVMParams | Out-Null
+    Set-VM -Name $VMName -ProcessorCount $Processors -DynamicMemory:$false | Out-Null
     $Drive = Mount-EphingDrive -Path $VHDPath
     $DomainName = $Domain
     if ($IPAddress -eq $DNSAddress) { $DomainName = "" }
@@ -377,6 +377,7 @@ Function Create-EphingLab {
         New-VMSwitch -Name $Switch -SwitchType Internal
     }
     Foreach ($vm in $xml.Lab.VM) {
+        $VMName = $Vm.VMName
         If (!(Get-VM -Name $VM.VMName -ErrorAction SilentlyContinue) -and !( Test-Path $VM.VHDPath )) {
             [int64]$OneGB = 1073741824
             $VMMemory = $VM.Memory
@@ -410,9 +411,9 @@ Function Create-EphingLab {
                 SetupCompleteDomain = $DomainName
                 StartupScript = $VM.StartupScript
             }
-            Write-EphingLog -Message ( $VM.VMName + " - Creating" )
+            Write-EphingLog -Message "$VMName - Creating"
             Create-EphingLabVM @NewVMParams
-            Write-EphingLog -Message ( $VM.VMName + " - Copying additional folders if specified" )
+            Write-EphingLog -Message "$VMName - Copying additional folders if specified"
             $Mounted = $false
             $Drive = ""
             Foreach ($instance in $VM.FolderToCopy) {
@@ -426,7 +427,7 @@ Function Create-EphingLab {
 
             $StartScript = $VM.StartupScript
             if(!([String]::IsNullOrEmpty($StartScript))) {
-                Write-EphingLog -Message ( $VM.VMName + " - Setting up startup script " )
+                Write-EphingLog -Message "$VMName - Setting up startup script "
                 If ($Mounted -ne $true) { 
                     $Drive = Mount-EphingDrive -Path $VM.VHDPath
                     $Drive = $Drive + ":\"
@@ -436,22 +437,32 @@ Function Create-EphingLab {
             }
 
             If ($Mounted -eq $true) {
-                Write-EphingLog -Message ( $VM.VMName + " - Dismounting drive" )
+                Write-EphingLog -Message "$VMName - Dismounting drive"
                 Dismount-VHD -Path $VM.VHDPath
             }
             If ($DomainController -eq $VM.VMName) { 
-                Write-EphingLog -Message ( $VM.VMName + ' - VM is the DC, starting VM' )
+                Write-EphingLog -Message "$VMName - VM is the DC, starting VM"
                 Start-VM -Name $DomainController 
             }
         } #if get-name
         elseif ( Get-VM -Name $VM.VMName -ErrorAction SilentlyContinue ) { 
-            Write-EphingLog -Message ( $VM.VMName + " - Skipping - VM Exists" )
+            Write-EphingLog -Message "$VMName - Skipping - VM Exists"
         }
         else { 
-            Write-EphingLog -Message ( $VM.VMName + " - Skipping - VHD Path " + $VM.VHDPath + " found" ) 
+            Write-EphingLog -Message "$VMName - Skipping - VHD Path " + $VM.VHDPath + " found"
         }
     }
-    Write-EphingLog -Message "Finished! If the Domain Controller was made with this script`nit will be starting now. Once the VM shuts down the domain is`ncreated. Start the DC, wait a few seconds, then start the other VMs!`nThey will domain join and run the specified startup scripts"
+    Write-EphingLog -Message "`n`nFinished! If the Domain Controller was made with this script`nit will be starting now. Once the VM shuts down the domain is`ncreated. Start the DC, wait a few seconds, then start the other VMs!`nThey will domain join and run the specified startup scripts`nYou can exit the script now, or wait and it will turn on your lab once the DC turns off..."
+    $Count = 0
+    do {
+        if ((Get-VM -Name $DomainController).State -ne 'Running') { $count++ }
+        Start-Sleep 5
+    } while( $Count -le 1 )
+    Start-VM -Name $DomainController
+    Start-Sleep 20
+    Foreach ($vm in $xml.Lab.VM) {
+        Start-Vm -Name $VM.VMName -ErrorAction SilentlyContinue
+    }
 }
 
 Function Remove-EphingLab {
