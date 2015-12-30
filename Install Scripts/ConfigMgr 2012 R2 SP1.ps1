@@ -1,7 +1,54 @@
+<#
+    .SYNOPSIS
+        This script will install ConfigMgr 2012 R2 SP1
+ 
+    .DESCRIPTION
+        If the domain is not Home and the admin password is not P@ssw0rd, change the two variables at the top of the script.
+        File locations:
+        .Net 3.5 - C:\ConfigMgr2012R2SP1\SXS
+        ADK Install Files - C:\ConfigMgr2012R2SP1\ADK
+        SQL Server 2014 Standard - C:\ConfigMgr2012R2SP1\SQL Server 2014 Standard
+        ConfigMgr 2012 SP2 - C:\ConfigMgr2012R2SP1\ConfigMgr 2012 SP2
+        ConfigMgr 2012 R2 SP1 - D:\LabSources\ConfigMgr2012R2SP1\ConfigMgr 2012 R2 SP1
+        ConfigMgr 2012 SP2 Prereqs - C:\ConfigMgr2012R2SP1\PreReqs
+
+    .EXAMPLE
+        
+  
+    .NOTES
+        AUTHOR: 
+        LASTEDIT: 12/21/2015 22:07:50
+ 
+   .LINK
+        
+#>
+$DefaultUserName = "Home\Administrator"
+$DefaultPassword = "P@ssw0rd"
+
+$ConfigMgrServer = "Lab-CM.Home.Lab"
+ 
 Function AutoLogon {
+<#
+    .SYNOPSIS
+        Will run this script again after reboot
+ 
+    .DESCRIPTION
+        
+   
+    .EXAMPLE
+        AutoLogon -DefaultUserName 'Home\Administrator' -DefaultPassword 'P@ssw0rd'
+  
+    .NOTES
+        AUTHOR: 
+        LASTEDIT: 12/21/2015 22:06:33
+ 
+   .LINK
+        https://github.com/Ryan2065/EphingLab
+#>
+    Param ( $DefaultUserName, $DefaultPassword )
     Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon' -Name AutoAdminLogon -Value 1
-    Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon' -Name DefaultUserName -Value "Home\Administrator"
-    Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon' -Name DefaultPassword -Value P@ssw0rd
+    Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon' -Name DefaultUserName -Value "$DefaultUserName"
+    Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon' -Name DefaultPassword -Value $DefaultPassword
     $ScriptName = $MyInvocation.ScriptName
     Set-ItemProperty -Path 'HKLM:\Software\Microsoft\Windows\CurrentVersion\RunOnce' -Name 'EphingScript' -Value "c:\WINDOWS\system32\WindowsPowerShell\v1.0\powershell.exe -noexit -file `"$ScriptName`""
 }
@@ -35,7 +82,7 @@ If ($TimesRan -eq $null) {
     $ace = New-Object System.DirectoryServices.ActiveDirectoryAccessRule $identity,$adRights,$type,$inheritanceType
     $acl.AddAccessRule($ace) 
     Set-ACL -aclobject $acl "ad:CN=System Management,CN=System,$root"
-    AutoLogon
+    AutoLogon -DefaultUserName $DefaultUserName -DefaultPassword $DefaultPassword
 }
 elseif ($TimesRan -eq 1) {
     $DeploymentToolsCommandLine = 'C:\ConfigMgr2012R2SP1\ADK\adksetup.exe /quiet /features OptionID.DeploymentTools'
@@ -230,31 +277,44 @@ RSSVCSTARTUPTYPE="Automatic"
     mkdir C:\WSUS
     cd 'C:\Program Files\Update Services\Tools\'
     .\wsusutil.exe postinstall SQL_INSTANCE_NAME="$env:ComputerName" CONTENT_DIR=C:\WSUS
-    AutoLogon
+    AutoLogon -DefaultUserName $DefaultUserName -DefaultPassword $DefaultPassword
 }
 elseif ($TimesRan -eq 2) {
-    $ConfigMgrINI = @'
+    $ConfigMgrINI = @"
+[Identification]
 Action=InstallPrimarySite
+[Options]
 ProductID=EVAL
+PrerequisiteComp=1
+PrerequisitePath="C:\ConfigMgr2012R2SP1\PreReqs"
 SiteCode=PS1
-SiteName=Home
-SDKServer=Lab-CM
+SMSInstallDir="C:\Program Files\Microsoft Configuration Manager"
+SiteName="Home"
+ManagementPoint=$ConfigMgrServer
+ManagementPointProtocol=HTTP
+SDKServer=$ConfigMgrServer
 RoleCommunicationProtocol=HTTPorHTTPS
 ClientsUsePKICertificate=0
-PrerequisiteComp=1
-PrerequisitePath=C:\ConfigMgr2012R2SP1\PreReqs
-MobileDeviceLanguage=0
-ManagementPoint=Lab-CM
-ManagementPointProtocol=HTTP
-DistributionPoint=Lab-CM
+DistributionPoint=$ConfigMgrServer
 DistributionPointProtocol=HTTP
 DistributionPointInstallIIS=0
-'@
+MobileDeviceLanguage=0
+[SQLConfigOptions]
+SQLServerName=$ConfigMgrServer
+DatabaseName=SMS_PS1
+SQLSSBPort=4022
+"@
 Write-Host "Installing ConfigMgr"
 $ConfigMgrINI > C:\ConfigMgr.ini
 $CommandLine = '"C:\ConfigMgr2012R2SP1\ConfigMgr 2012 SP2\SMSSETUP\BIN\X64\setup.exe" /script C:\ConfigMgr.ini /nouserinput'
 $InstallProcess = ([wmiclass]"root\cimv2:Win32_Process").Create( $CommandLine )
 While( Get-WmiObject Win32_Process -Filter "ProcessID='$($InstallProcess.ProcessID)'") { Start-Sleep 5 }
+AutoLogon -DefaultUserName $DefaultUserName -DefaultPassword $DefaultPassword
+}
+elseif ($TimesRan -eq 3) {
+    $CommandLine = 'msiexec /i "C:\ConfigMgr2012R2SP1\ConfigMgr 2012 R2 SP1\SMSSETUP\BIN\X64\ConfigMgr2012R2SP1.msi" /qn'
+    $InstallProcess = ([wmiclass]"root\cimv2:Win32_Process").Create( $CommandLine )
+    While( Get-WmiObject Win32_Process -Filter "ProcessID='$($InstallProcess.ProcessID)'") { Start-Sleep 5 }
 }
 $TimesRan++
 New-Item -Path Registry::HKLM\Software\EphingScripts -ErrorAction SilentlyContinue
