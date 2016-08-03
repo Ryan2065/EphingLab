@@ -39,6 +39,8 @@ $ConfigMgrFiles = "$($SourceFiles)\SC_Configmgr_1511"
 #endregion
 $DomainController = 'Lab-DC'  #required for extending the schema
 
+$LatestUpdateName = 'Configuration Manager 1606'
+
 Function AutoLogon {
 <#
     .SYNOPSIS
@@ -429,7 +431,7 @@ elseif ($TimesRan -eq 4) {
     do {
         $ParamHash = @{
             NameSpace = "root\sms\site_$($SiteCode)"
-            Query = 'Select * from SMS_CM_UpdatePackages where State like "262146"'
+            Query = "Select * from SMS_CM_UpdatePackages where Name like '$($LatestUpdateName)'"
         }
         $Update = Get-WmiObject @ParamHash
         if($update -eq $null) {
@@ -445,7 +447,7 @@ elseif ($TimesRan -eq 4) {
 
     $ParamHash = @{
         NameSpace = "root\sms\site_$($SiteCode)"
-        Query = 'Select * from SMS_CM_UpdatePackages where State like "262146"'
+        Query = "Select * from SMS_CM_UpdatePackages where Name like '$($LatestUpdateName)'"
     }
     $Update = Get-WmiObject @ParamHash
     $Update[0].UpdatePrereqAndStateFlags(0,2)
