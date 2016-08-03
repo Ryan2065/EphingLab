@@ -1,6 +1,6 @@
 <#
     .SYNOPSIS
-        This script will install ConfigMgr 2012 R2 SP1
+        This script will install ConfigMgr 1511 and then update it to the latest version (currently 1606)
  
     .DESCRIPTION
         If the domain is not Home and the admin password is not P@ssw0rd, change the two variables at the top of the script.
