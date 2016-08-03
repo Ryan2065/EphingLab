@@ -450,7 +450,7 @@ elseif ($TimesRan -eq 4) {
         Query = "Select * from SMS_CM_UpdatePackages where Name like '$($LatestUpdateName)'"
     }
     $Update = Get-WmiObject @ParamHash
-    $Update[0].UpdatePrereqAndStateFlags(0,2)
+    $Update.UpdatePrereqAndStateFlags(0,2)
     Exit
 }
 $TimesRan++
