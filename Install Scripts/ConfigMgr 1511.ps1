@@ -336,6 +336,45 @@ $ConfigMgrINI > C:\ConfigMgr.ini
 $CommandLine = "`"$($ConfigMgrFiles)\SMSSETUP\BIN\X64\setup.exe`" /script C:\ConfigMgr.ini /nouserinput"
 $InstallProcess = ([wmiclass]"root\cimv2:Win32_Process").Create( $CommandLine )
 While( Get-WmiObject Win32_Process -Filter "ProcessID='$($InstallProcess.ProcessID)'") { Start-Sleep 5 }
+
+$WmiObjectSiteClass = "SMS_SCI_SiteDefinition"
+$WmiObjectClass = "SMS_SCI_Component"
+$WmiComponentName = "ComponentName='SMS_DMP_DOWNLOADER'"
+$WmiComponentNameUpdateRing = "UpdateRing" 
+$WmiObject = Get-WmiObject -Namespace "root\sms\site_$($SiteCode)" -Class $WmiObjectClass -Filter $WmiComponentName | Where-Object { $_.SiteCode -eq $SiteCode } 
+
+#region Enable Fast RIng
+$props = $WmiObject.Props
+$props = $props | where {$_.PropertyName -eq $WmiComponentNameUpdateRing}
+if (!$props) {
+    #Create embedded property
+    $EmbeddedProperty = ([WMICLASS]"root\SMS\site_$($SiteCode):SMS_EmbeddedProperty").CreateInstance()
+    $EmbeddedProperty.PropertyName = $WmiComponentNameUpdateRing
+    $EmbeddedProperty.Value = 2
+    $EmbeddedProperty.Value1 = ""
+    $EmbeddedProperty.Value2 = ""
+    $WmiObject.Props += [System.Management.ManagementBaseObject] $EmbeddedProperty
+    $WmiObject.put()
+}
+else
+{
+    $props = $WmiObject.Props
+    $index = 0
+    ForEach($oProp in $props)
+    {
+        if($oProp.PropertyName -eq $WmiComponentNameUpdateRing)
+        {
+            $oProp.Value=2
+            $props[$index]=$oProp;
+        }
+        $index++
+    }
+
+    $WmiObject.Props = $props
+    $WmiObject.put()
+}
+#endregion
+
 AutoLogon -DefaultUserName $DefaultUserName -DefaultPassword $DefaultPassword
 }
 elseif ($TimesRan -eq 3) {
@@ -387,9 +426,43 @@ elseif ($TimesRan -eq 4) {
     $ADContainerProp =$Sysdiscovery.PropLists | where {$_.PropertyListName -eq "AD Containers" }
     $ADContainerProp.Values = "LDAP://DC=Home,DC=Lab",0,0
     Get-CimInstance -Namespace 'root\sms\site_ps1' -classname SMS_SCI_Component -filter 'componentname ="SMS_AD_USER_DISCOVERY_AGENT"' | Set-CimInstance -Property @{PropLists=$Sysdiscovery.PropLists}
+
+
+    
+    $Update = $null
+    do {
+        $ParamHash = @{
+            NameSpace = "root\sms\site_$($SiteCode)"
+            Query = 'Select * from SMS_CM_UpdatePackages where State like "262146"'
+        }
+        $Update = Get-WmiObject @ParamHash
+        if($update -eq $null) {
+            Write-Host 'No Updates Found'
+            $Update
+        }
+        else {
+            Write-Host 'Update found!'
+            $Update
+        }
+        Start-Sleep 5
+    } while ($Update -eq $null)
+
+
+    $ParamHash = @{
+        NameSpace = "root\sms\site_$($SiteCode)"
+        Query = 'Select * from SMS_CM_UpdatePackages where State like "262146"'
+    }
+    $Update = Get-WmiObject @ParamHash
+    $Update[0].UpdatePrereqAndStateFlags(0,2)
+
+    #checking prereqs  State: 65537
+    #checking prereqs: 65538
+
+        #installing   State: 2
+        #prereq passed with errors  state: 131075
+
 }
 $TimesRan++
 New-Item -Path Registry::HKLM\Software\EphingScripts -ErrorAction SilentlyContinue
 Set-ItemProperty -Path Registry::HKLM\Software\EphingScripts -Name 'TimesRan' -Value $TimesRan
 shutdown /r /f /t 0
-
