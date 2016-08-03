@@ -22,6 +22,7 @@
    .LINK
         
 #>
+
 $DefaultUserName = "Home\Administrator"
 $DefaultPassword = "P@ssw0rd"
 
@@ -31,13 +32,11 @@ $SiteCode = 'PS1'
 
 #region Files
 $SourceFiles = 'C:\ConfigMgr1511'
-
 $SXSFiles = "$($SourceFiles)\SXS"
 $ADKFiles = "$($SourceFiles)\ADK"
 $SQLFiles = "$($SourceFiles)\SQL Server 2014 Standard"
 $ConfigMgrFiles = "$($SourceFiles)\SC_Configmgr_1511"
 #endregion
-
 $DomainController = 'Lab-DC'  #required for extending the schema
 
 Function AutoLogon {
@@ -341,8 +340,7 @@ $WmiObjectSiteClass = "SMS_SCI_SiteDefinition"
 $WmiObjectClass = "SMS_SCI_Component"
 $WmiComponentName = "ComponentName='SMS_DMP_DOWNLOADER'"
 $WmiComponentNameUpdateRing = "UpdateRing" 
-$WmiObject = Get-WmiObject -Namespace "root\sms\site_$($SiteCode)" -Class $WmiObjectClass -Filter $WmiComponentName | Where-Object { $_.SiteCode -eq $SiteCode } 
-
+$WmiObject = Get-WmiObject -Namespace "root\sms\site_$($SiteCode)" -Class $WmiObjectClass -Filter $WmiComponentName | Where-Object { $_.SiteCode -eq $SiteCode }
 #region Enable Fast RIng
 $props = $WmiObject.Props
 $props = $props | where {$_.PropertyName -eq $WmiComponentNameUpdateRing}
@@ -426,8 +424,6 @@ elseif ($TimesRan -eq 4) {
     $ADContainerProp =$Sysdiscovery.PropLists | where {$_.PropertyListName -eq "AD Containers" }
     $ADContainerProp.Values = "LDAP://DC=Home,DC=Lab",0,0
     Get-CimInstance -Namespace 'root\sms\site_ps1' -classname SMS_SCI_Component -filter 'componentname ="SMS_AD_USER_DISCOVERY_AGENT"' | Set-CimInstance -Property @{PropLists=$Sysdiscovery.PropLists}
-
-
     
     $Update = $null
     do {
@@ -447,20 +443,13 @@ elseif ($TimesRan -eq 4) {
         Start-Sleep 5
     } while ($Update -eq $null)
 
-
     $ParamHash = @{
         NameSpace = "root\sms\site_$($SiteCode)"
         Query = 'Select * from SMS_CM_UpdatePackages where State like "262146"'
     }
     $Update = Get-WmiObject @ParamHash
     $Update[0].UpdatePrereqAndStateFlags(0,2)
-
-    #checking prereqs  State: 65537
-    #checking prereqs: 65538
-
-        #installing   State: 2
-        #prereq passed with errors  state: 131075
-
+    Exit
 }
 $TimesRan++
 New-Item -Path Registry::HKLM\Software\EphingScripts -ErrorAction SilentlyContinue
