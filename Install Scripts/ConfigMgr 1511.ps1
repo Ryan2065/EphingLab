@@ -87,7 +87,14 @@ If ($TimesRan -eq $null) {
     try {
         $root = (Get-ADRootDSE).defaultNamingContext
         
-        $ou = New-ADObject -Type Container -name "System Management" -Path "CN=System,$root" -Passthru 
+        $ou = $null
+        try {
+            $ou = Get-ADObject "CN=System Management,CN=System,$root"
+        }
+        catch {  }
+        if ($ou -eq $null) {
+            $ou = New-ADObject -Type Container -name "System Management" -Path "CN=System,$root" -Passthru
+        }
         $acl = Get-ACL "ad:CN=System Management,CN=System,$root"
         $computer = Get-ADComputer $env:ComputerName 
         $sid = [System.Security.Principal.SecurityIdentifier] $computer.SID
@@ -431,7 +438,7 @@ elseif ($TimesRan -eq 4) {
     do {
         $ParamHash = @{
             NameSpace = "root\sms\site_$($SiteCode)"
-            Query = "Select * from SMS_CM_UpdatePackages where Name like '$($LatestUpdateName)'"
+            Query = "Select * from SMS_CM_UpdatePackages where Name like '$($LatestUpdateName)' AND State = 262146"
         }
         $Update = Get-WmiObject @ParamHash
         if($update -eq $null) {
